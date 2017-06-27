@@ -5,7 +5,7 @@
 A chrome extension to create a [Jira](https://de.atlassian.com/software/jira) issue out 
 of your webdriver bug report.
 
-[Install the extension](https://chrome.google.com/webstore/detail/raygun2jira/ndccegieolaafdhogkhckidmfbefeigo) in your chrome browser.
+[Install the extension](https://chrome.google.com/webstore/detail/report2jira/mpdlbicphjcfcnejdompdbbpmkhlmghl) in your chrome browser.
  
 ## Features
 
