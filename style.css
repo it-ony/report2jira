@@ -1,0 +1,13 @@
+.jira-btn {
+    position: fixed;
+    right: 1em;
+    border: 1px solid lightgray;
+    padding: 0.5em;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.jira-btn:hover {
+    background: white
+}
