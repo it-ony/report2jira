@@ -4,10 +4,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         server: '',
         projectId: null,
         issueTypeId: null
-    }, function(data) {
-        var server = data.server;
+    }, function(configuration) {
+        let server = configuration.server;
 
-        if (!(server && data.projectId && data.issueTypeId)) {
+        if (!(server && configuration.projectId && configuration.issueTypeId)) {
             chrome.runtime.openOptionsPage();
             return sendResponse(JSON.stringify({
                 error: 'Server not defined',
@@ -17,92 +17,141 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 
         server = server.replace(/\/$/, "");
 
-        var xhr = new XMLHttpRequest();
+        const method = {
+            getTicket: function(parameter) {
 
-        xhr.open('POST',server + '/rest/api/2/issue/', true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
+                const jql = 'summary ~ "\\"' + parameter.summary + '\\""';
 
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status == 201) {
-                    var data = JSON.parse(xhr.responseText);
-                    data["meta"] = {
-                        server: server,
-                        projectId: data.projectId,
-                        issueTypeId: data.issueTypeId
+                fetch(server + '/rest/api/2/search?jql=' + jql + '&maxResults=1', {
+                    credentials: 'include'
+                })
+                .then(response => response.json())
+                .then(json => {
+                    debugger;
+
+                    if (json.total === 1) {
+                        sendResponse({
+                            meta: {
+                                server: server,
+                                issue: json.issues[0].key
+                            }
+                        });
+                    } else {
+                        sendResponse({
+                            meta: {
+                                server: server,
+                                issue: undefined
+                            }
+                        });
+                    }
+                })
+                .catch(err => {
+                    sendResponse(JSON.stringify({
+                        error: err
+                    }))
+                });
+
+            },
+            createIssue: function(parameter) {
+
+                var xhr = new XMLHttpRequest();
+
+                xhr.open('POST', server + '/rest/api/2/issue/', true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 201) {
+                            var jiraData = JSON.parse(xhr.responseText);
+                            jiraData["meta"] = {
+                                server: server,
+                                projectId: jiraData.projectId,
+                                issueTypeId: jiraData.issueTypeId
+                            };
+
+                            sendResponse(jiraData);
+
+                            if (parameter.screenshot) {
+                                attachScreenshot(jiraData.key, parameter.screenshot);
+                            }
+
+                            if (parameter.har) {
+                                attachHar(jiraData.key, parameter.har);
+                            }
+
+                        } else {
+                            sendResponse({
+                                error: xhr.responseText || xhr.status || true
+                            });
+                        }
+                    }
+                };
+
+                const fields = {
+                    project: {
+                        key: configuration.projectId
+                    },
+                    summary: parameter.summary,
+                    description: parameter.description,
+                    issuetype: {
+                        id: configuration.issueTypeId
+                    }
+                };
+
+                const component = parameter.component;
+                if (component) {
+                    fields.components = [{
+                        name: component
+                    }];
+                }
+
+                xhr.send(JSON.stringify({
+                    fields: fields
+                }));
+
+
+                function attachData(blob, fileName, issueId) {
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', server + '/rest/api/2/issue/' + issueId + '/attachments', true);
+                    xhr.setRequestHeader('X-Atlassian-Token', 'nocheck');
+
+                    var formData = new FormData();
+                    formData.append("file", blob, fileName);
+
+                    xhr.send(formData);
+                }
+
+                function attachScreenshot(issueId, screenshot) {
+                    attachData(base64toBlob(screenshot.replace(/^data.*?,\s*/i, ""), "image/png"), "screenshot.png", issueId);
+                }
+
+                function attachHar(issueId, harFile) {
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("GET", harFile, true);
+                    xhr.responseType = "arraybuffer";
+
+                    xhr.onload = function() {
+                        attachData(new Blob([xhr.response], {
+                            type: "application/octet-stream"
+                        }), "requests.har", issueId);
                     };
 
-                    sendResponse(JSON.stringify(data));
-                    
-                    if (request.screenshot) {
-                        attachScreenshot(data.key);
-                    }
+                    xhr.send();
 
-                    if (request.har) {
-                        attachHar(data.key);
-                    }
-                    
-                } else {
-                    sendResponse(JSON.stringify({
-                        error: xhr.responseText || xhr.status || true
-                    }));
                 }
+
+
             }
-        };
+        }[request.method];
 
-        var fields = {
-            project: {
-                key: data.projectId
-            },
-            summary: request.summary,
-            description: request.description,
-            issuetype: {
-                id: data.issueTypeId
-            }
-        };
-
-        var component = request.component;
-        if (component) {
-            fields.components = [{
-                name: component
-            }];
-        }
-
-        xhr.send(JSON.stringify({
-            fields: fields
-        }));
-
-
-        function attachData(blob, fileName, issueId) {
-
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', server + '/rest/api/2/issue/' + issueId + '/attachments', true);
-            xhr.setRequestHeader('X-Atlassian-Token', 'nocheck');
-
-            var formData = new FormData();
-            formData.append("file", blob, fileName);
-
-            xhr.send(formData);
-        }
-
-        function attachScreenshot(issueId) {
-            attachData(base64toBlob(request.screenshot.replace(/^data.*?,\s*/i, ""), "image/png"), "screenshot.png", issueId);
-        }
-
-        function attachHar(issueId) {
-
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", request.har, true);
-            xhr.responseType = "arraybuffer";
-
-            xhr.onload = function() {
-                attachData(new Blob([xhr.response], {
-                    type: "application/octet-stream"
-                }), "requests.har", issueId);
-            };
-
-            xhr.send();
-
+        if (method) {
+            method(request.data);
+        } else {
+            return sendResponse({
+                error: 'Method "' + method +  '" not found.'
+            });
         }
 
     });

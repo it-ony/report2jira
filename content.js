@@ -1,90 +1,120 @@
 (function(window, chrome) {
 
-    var btn = document.createElement("a");
-    btn.className = "jira-btn";
-    btn.innerText= 'Create Jira Issue';
+    let summary = "[QA] - "
+        + document.querySelector("h1 .test-class").innerText.split(".").pop()
+        + "."
+        + document.querySelector("h1 .test-method").innerText;
 
-    var gotoJira = document.createElement("a");
-    gotoJira.className = "jira-btn";
 
-    document.body.prepend(btn);
+    chrome.runtime.sendMessage({
+        method: "getTicket",
+        data: {
+            summary: summary
+        }
+    }, function(response) {
 
-    btn.onclick = function() {
-
-        var componentElement = document.querySelector("meta[name='component']");
-        var component = componentElement  ? componentElement.getAttribute("content") : null;
-
-        if (!component) {
-            component = prompt("Which component", "");
+        if (response && response.meta && response.meta.issue) {
+            showGotoIssueButton(response.meta.issue, response.meta.server);
+        } else {
+            addCreateIssueButton();
         }
 
-        var summary = "[QA] - "
-            + document.querySelector("h1 .test-class").innerText.split(".").pop()
-            + "."
-            + document.querySelector("h1 .test-method").innerText;
+    });
 
-        var link = document.querySelector("#ul .url a"),
-            startParameter = document.querySelector(".start-parameter pre"),
-            productModel = document.querySelector(".product-model pre");
+    let btn;
 
-        var parts = [
-            "See " + window.location.href + " for full details",
-            document.querySelector(".stacktrace-message").innerText,
-            "{code}\n" + document.querySelector(".stacktrace").innerText + "\n{code}"
-        ];
+    function addCreateIssueButton() {
 
-        if (link) {
-            parts.push(link.getAttribute("href"))
-        }
+        btn = document.createElement("a");
+        btn.className = "jira-btn";
+        btn.innerText = 'Create Jira Issue';
 
-        if (startParameter) {
-            parts.push("{code}\n" + startParameter.innerText + "\n{code}");
-        }
+        document.body.prepend(btn);
 
-        if (productModel) {
-            parts.push("{code}\n" + productModel.innerText + "\n{code}");
-        }
+        btn.onclick = function() {
 
-        var description = parts.map(function(s) {
-            return s || "";
-        }).join("\n\n");
+            const componentElement = document.querySelector("meta[name='component']");
+            let component = componentElement ? componentElement.getAttribute("content") : null;
 
-        var screenshot = null;
+            if (!component) {
+                component = prompt("Which component", "");
+            }
 
-        var screenshotElement = document.querySelector(".screenshot img");
-        if (screenshotElement) {
-            screenshot = screenshotElement.getAttribute("src");
-        }
+            const link           = document.querySelector("#ul .url a"),
+                  startParameter = document.querySelector(".start-parameter pre"),
+                  productModel   = document.querySelector(".product-model pre");
 
-        chrome.runtime.sendMessage({
-                component: component,
-                summary: summary,
-                description: description,
-                screenshot: screenshot,
-                har: location.href.replace("_report.html", "_proxy.har")
-            },
-            function(response) {
+            const parts = [
+                "See " + window.location.href + " for full details",
+                document.querySelector(".stacktrace-message").innerText,
+                "{code}\n" + document.querySelector(".stacktrace").innerText + "\n{code}"
+            ];
 
-                debugger;
+            if (link) {
+                parts.push(link.getAttribute("href"))
+            }
 
-                if (response) {
-                    try {
-                        response = JSON.parse(response);
-                    } catch (e) {
+            if (startParameter) {
+                parts.push("{code}\n" + startParameter.innerText + "\n{code}");
+            }
+
+            if (productModel) {
+                parts.push("{code}\n" + productModel.innerText + "\n{code}");
+            }
+
+            const description = parts.map(function(s) {
+                return s || "";
+            }).join("\n\n");
+
+            let screenshot = null;
+
+            const screenshotElement = document.querySelector(".screenshot img");
+            if (screenshotElement) {
+                screenshot = screenshotElement.getAttribute("src");
+            }
+
+            chrome.runtime.sendMessage({
+                method: "createIssue",
+                    data: {
+                        component: component,
+                        summary: summary,
+                        description: description,
+                        screenshot: screenshot,
+                        har: location.href.replace("_report.html", "_proxy.har")
                     }
-                }
+                }, function(response) {
 
-                if (response && !response.error) {
-                    btn.parentNode.removeChild(btn);
-                    document.body.prepend(gotoJira);
-                    gotoJira.href = response.meta.server +  "/browse/" + response.key;
-                    gotoJira.textContent = response.key;
-                } else if (!response.showSettings) {
-                    alert(response ? response.error : "unknown error");
-                }
-            });
+                    debugger;
 
-    };
+                    if (response) {
+                        try {
+                            response = JSON.parse(response);
+                        } catch (e) {
+                        }
+                    }
 
+                    if (response && !response.error) {
+                        btn.parentNode && btn.parentNode.removeChild(btn);
+                        showGotoIssueButton(response.key, response.meta.server)
+                    } else if (!response.showSettings) {
+                        alert(response ? response.error : "unknown error");
+                    }
+                });
+
+        };
+
+    }
+
+    function showGotoIssueButton(ticketKey, server) {
+
+        const gotoJira = document.createElement("a");
+        gotoJira.className = "jira-btn";
+
+        document.body.prepend(gotoJira);
+
+        gotoJira.href = server + "/browse/" + ticketKey;
+        gotoJira.textContent = ticketKey;
+
+    }
 
 })(window, chrome);
