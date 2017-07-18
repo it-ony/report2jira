@@ -29,7 +29,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 .then(json => {
                     debugger;
 
-                    if (json.total === 1) {
+                    if (json.total >= 1) {
                         sendResponse({
                             meta: {
                                 server: server,
