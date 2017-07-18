@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "report2jira",
     "description": "Extract webdriver reports errors into Jira",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "background": {
         "scripts": [
             "background.js"
