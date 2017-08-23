@@ -3,7 +3,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     chrome.storage.sync.get({
         server: '',
         projectId: null,
-        issueTypeId: null
+        issueTypeId: null,
+        user: null
     }, function(configuration) {
         let server = configuration.server;
 
@@ -87,6 +88,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                     }
                 };
 
+                var postIssue = function() {
                 const fields = {
                     project: {
                         key: configuration.projectId
@@ -95,6 +97,9 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                     description: parameter.description,
                     issuetype: {
                         id: configuration.issueTypeId
+                        },
+                        assignee: {
+                            name: configuration.user
                     }
                 };
 
@@ -109,6 +114,20 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                     fields: fields
                 }));
 
+                };
+
+                if (configuration.user === null) {
+                    fetch(server + '/rest/auth/latest/session', {
+                        credentials: 'include'
+                    })
+                        .then(response => response.json())
+                        .then(json => {
+                            configuration.user = json.name;
+                            postIssue();
+                        });
+                } else {
+                    postIssue();
+                }
 
                 function attachData(blob, fileName, issueId) {
 
